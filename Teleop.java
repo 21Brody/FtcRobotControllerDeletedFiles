@@ -485,25 +485,19 @@ public abstract class Teleop extends LinearOpMode {
         robot.driveTrainMotors( frontLeft, frontRight, rearLeft, rearRight );
     } // processStandardDriveMode
 
-    /*---------------------------------------------------------------------------------*/
+ /*---------------------------------------------------------------------------------*/
     /*  TELE-OP: Driver-centric Mecanum-wheel drive control (depends on gyro!)         */
     /*---------------------------------------------------------------------------------*/
-    void processDriverCentricDriveMode() {
-        double leftFrontAngle, rightFrontAngle, leftRearAngle, rightRearAngle;
-        double gyroAngle;
+    void processDriverCentricDriveMode() {    void processDriverCentricDriveMode() {
+        double y, x, rx;
+        double botHeading;
+        double effectiveHeading;
 
         // Retrieve X/Y and ROTATION joystick input
-        if( controlMultSegLinear ) { // // driver centric results in 0.6 max??
-            yTranslation = 1.66 * multSegLinearXY( -gamepad1.left_stick_y );
-            xTranslation = 1.66 * multSegLinearXY(  gamepad1.left_stick_x );
-            rotation     = 1.66 * multSegLinearRot( -gamepad1.right_stick_x );
-        }
-        else {
-            yTranslation = -gamepad1.left_stick_y;
-            xTranslation = gamepad1.left_stick_x;
-            rotation = -gamepad1.right_stick_x;
-        }
-        gyroAngle = -robot.headingIMU();
+        y = gamepad1.left_stick_y;
+        x = -gamepad1.left_stick_x;
+        rx = gamepad1.right_stick_x;
+        botHeading = -robot.headingIMU();  // Assume this returns degrees; negative sign may need adjustment based on IMU convention
 
         if (gamepad1.square) {
             // The driver presses SQUARE, then uses the left joystick to say what angle the robot
@@ -512,44 +506,37 @@ public abstract class Teleop extends LinearOpMode {
             // final calculated angle and drive with the left stick.  Button should be released
             // before stick.  The default behavior of atan2 is 0 to -180 on Y Axis CCW, and 0 to
             // 180 CW.  This code normalizes that to 0 to 360 CCW from the Y Axis
-            driverAngle = -Math.toDegrees( Math.atan2( -gamepad1.left_stick_x, gamepad1.left_stick_y) );
+            driverAngle = Math.toDegrees(Math.atan2(gamepad1.left_stick_x, gamepad1.left_stick_y));
             if (driverAngle < 0) {
                 driverAngle += 360.0;
             }
-            driverAngle -= gyroAngle;
-            xTranslation = 0.0;
-            yTranslation = 0.0;
-            rotation     = 0.0;
+            driverAngle -= botHeading;
+            x = 0.0;
+            y = 0.0;
+            rx = 0.0;
         }
 
         // Adjust new gyro angle for the driver reference angle
-        gyroAngle += driverAngle;
+        effectiveHeading = Math.toRadians(botHeading + driverAngle);
 
-        // Compute motor angles relative to current orientation
-        rightFrontAngle = Math.toRadians( gyroAngle + 315 );  //   /    pulls at 315deg (135+180)
-        leftFrontAngle  = Math.toRadians( gyroAngle + 45  );  //   \    pulls at 45deg
-        rightRearAngle  = Math.toRadians( gyroAngle + 225 );  //   \    pulls at 225deg (45+180)
-        leftRearAngle   = Math.toRadians( gyroAngle + 135 );  //   /    pulls at 135
+        // Rotate the movement direction counter to the bot's rotation
+        double rotX = x * Math.cos(-effectiveHeading) - y * Math.sin(-effectiveHeading);
+        double rotY = x * Math.sin(-effectiveHeading) + y * Math.cos(-effectiveHeading);
 
-        frontRight = (yTranslation * Math.sin(rightFrontAngle) + xTranslation * Math.cos(rightFrontAngle))/Math.sqrt(2) + rotation;
-        frontLeft  = (yTranslation * Math.sin(leftFrontAngle)  + xTranslation * Math.cos(leftFrontAngle))/Math.sqrt(2)  + rotation;
-        rearRight  = (yTranslation * Math.sin(rightRearAngle)  + xTranslation * Math.cos(rightRearAngle))/Math.sqrt(2)  + rotation;
-        rearLeft   = (yTranslation * Math.sin(leftRearAngle)   + xTranslation * Math.cos(leftRearAngle))/Math.sqrt(2)   + rotation;
+        // Apply strafing compensation if needed (adjust 1.1 based on empirical testing)
+        rotX = rotX * 1.1;
 
         // Normalize the values so none exceed +/- 1.0
-        maxPower = Math.max( Math.max( Math.abs(rearLeft),  Math.abs(rearRight)  ),
-                             Math.max( Math.abs(frontLeft), Math.abs(frontRight) ) );
-        if (maxPower > 1.0)
-        {
-            rearLeft   /= maxPower;
-            rearRight  /= maxPower;
-            frontLeft  /= maxPower;
-            frontRight /= maxPower;
-        }
+        double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1.0);
+        double frontLeft = (rotY + rotX + rx) / denominator;
+        double frontRight = (rotY - rotX - rx) / denominator;
+        double rearLeft = (rotY - rotX + rx) / denominator;
+        double rearRight = (rotY + rotX - rx) / denominator;
 
-        // Update motor power settings (left motors are defined as REVERSE mode)
-        robot.driveTrainMotors( -frontLeft, frontRight, -rearLeft, rearRight );
-
+        // Update motor power settings (assuming left motors are defined as REVERSE mode in hardware,
+        // or adjust signs here if necessary. If positive power to all moves forward without negation,
+        // remove the negatives below.)
+        robot.driveTrainMotors(frontLeft, frontRight, rearLeft, rearRight);
     } // processDriverCentricDriveMode
     
     /*---------------------------------------------------------------------------------*/
