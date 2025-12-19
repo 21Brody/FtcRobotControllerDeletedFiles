@@ -85,18 +85,18 @@ public class AprilTagProcessorImplCallback extends AprilTagProcessorImpl {
             }
         }
     }
-    // Calculate a location based on an april tag detection
+    // Calculates a field coordinate based on an april tag detection
     public FieldCoordinate calculateCoordinatesFromDetection(AprilTagDetection detection) {
         FieldCoordinate result = null;
         // Throw out detections that we believe will cause more harm than good.
-        // TODO: update this to real data, and not just a placeholder and consider what all we want
-        // to use to invalidate a detection.
+        // Invalidates detection outside of a 20 inch yaw range.
         if(detection.ftcPose.yaw < 20.0) {
-            // TODO: Do the math to convert an april tag detection to a coordinate
+            // Does the math to convert an april tag detection to a field coordinate
             double aprilTagX = detection.ftcPose.range * Math.cos( Math.toRadians(detection.ftcPose.bearing) );
             double aprilTagY = detection.ftcPose.range * Math.sin( Math.toRadians(detection.ftcPose.bearing) );
             double aprilTagAngleRadians = Math.toRadians(detection.ftcPose.yaw);
             double myPositionX, myPositionY, myPositionAngleRadians;
+            // Calulate offsets from april tag for each id
             switch(detection.id) {
                 case 1:
                     myPositionX = APRIL_TAG_1.getX() - aprilTagX;
